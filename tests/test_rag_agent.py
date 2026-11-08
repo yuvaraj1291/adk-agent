@@ -14,8 +14,12 @@ def env(monkeypatch):
   monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
   monkeypatch.setenv("VECTOR_SEARCH_INDEX_ENDPOINT", "123")
   monkeypatch.setenv("VECTOR_SEARCH_DEPLOYED_INDEX_ID", "deployed")
+  monkeypatch.delenv("CHUNKS_URI", raising=False)
   vector_search._genai_client.cache_clear()
   vector_search._index_endpoint.cache_clear()
+  vector_search._chunk_store.cache_clear()
+  yield
+  vector_search._chunk_store.cache_clear()
 
 
 def test_agent_has_both_tools():
@@ -61,6 +65,61 @@ def test_search_knowledge_base_no_results_and_errors():
   with mock.patch.object(vector_search, "embed_texts", side_effect=RuntimeError("boom")):
     out = vector_search.search_knowledge_base("x")
   assert out["status"] == "error" and "boom" in out["error_message"]
+
+
+def test_search_fills_text_from_chunks_file(tmp_path, monkeypatch):
+  chunks = tmp_path / "chunks.jsonl"
+  chunks.write_text(
+      '{"id": "abc", "text": "Offer: 31 days PTO", "source": "gs://b/offer.pdf", "page": 2}\n'
+      '\n'
+      '{"id": "xyz", "text": "other", "source": "gs://b/other.pdf", "page": 1}\n')
+  monkeypatch.setenv("CHUNKS_URI", str(chunks))
+  vector_only = SimpleNamespace(id="abc", distance=0.6, restricts=None,
+                                embedding_metadata=None)
+  unknown = SimpleNamespace(id="missing", distance=0.5, restricts=None,
+                            embedding_metadata=None)
+  endpoint = mock.MagicMock()
+  endpoint.find_neighbors.return_value = [[vector_only, unknown]]
+  with mock.patch.object(vector_search, "embed_texts", return_value=[[0.1]]), \
+       mock.patch.object(vector_search, "_index_endpoint", return_value=endpoint):
+    out = vector_search.search_knowledge_base("vacation days?")
+  assert out["results"] == [
+      {"id": "abc", "text": "Offer: 31 days PTO", "source": "gs://b/offer.pdf",
+       "distance": 0.6, "page": 2},
+      {"id": "missing", "text": "", "source": "", "distance": 0.5}]
+
+
+def test_datapoint_metadata_wins_over_chunks_file(tmp_path, monkeypatch):
+  chunks = tmp_path / "chunks.jsonl"
+  chunks.write_text('{"id": "abc", "text": "stale", "source": "old.md"}\n')
+  monkeypatch.setenv("CHUNKS_URI", str(chunks))
+  neighbor = SimpleNamespace(id="abc", distance=0.9, restricts=None,
+                             embedding_metadata={"text": "fresh", "source": "new.md"})
+  endpoint = mock.MagicMock()
+  endpoint.find_neighbors.return_value = [[neighbor]]
+  with mock.patch.object(vector_search, "embed_texts", return_value=[[0.1]]), \
+       mock.patch.object(vector_search, "_index_endpoint", return_value=endpoint):
+    [result] = vector_search.search_knowledge_base("q")["results"]
+  assert (result["text"], result["source"]) == ("fresh", "new.md")
+
+
+@pytest.mark.parametrize("uri, expected", [
+    ("gs://bucket/a/b.jsonl", ("bucket", "a/b.jsonl")),
+    ("https://storage.googleapis.com/bucket/a/b.jsonl", ("bucket", "a/b.jsonl")),
+    ("/local/chunks.jsonl", None),
+])
+def test_parse_gcs_uri(uri, expected):
+  assert vector_search._parse_gcs_uri(uri) == expected
+
+
+def test_chunks_file_error_is_reported(monkeypatch):
+  monkeypatch.setenv("CHUNKS_URI", "/does/not/exist.jsonl")
+  endpoint = mock.MagicMock()
+  endpoint.find_neighbors.return_value = [[]]
+  with mock.patch.object(vector_search, "embed_texts", return_value=[[0.1]]), \
+       mock.patch.object(vector_search, "_index_endpoint", return_value=endpoint):
+    out = vector_search.search_knowledge_base("q")
+  assert out["status"] == "error" and "FileNotFoundError" in out["error_message"]
 
 
 def test_chunking_respects_size():
