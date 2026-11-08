@@ -25,8 +25,23 @@ def env(monkeypatch):
 def test_agent_has_both_tools():
   tool_names = [getattr(t, "name", getattr(t, "__name__", None))
                 for t in agent.root_agent.tools]
-  assert tool_names == ["google_search", "search_knowledge_base"]
+  assert tool_names == ["google_search", "search_knowledge_base", "preload_memory"]
   assert agent.root_agent.tools[0].bypass_multi_tools_limit
+
+
+def test_agent_saves_session_to_memory_after_each_turn():
+  assert agent.root_agent.after_agent_callback is agent.save_session_to_memory
+
+
+@pytest.mark.asyncio
+async def test_save_session_to_memory_calls_service_and_swallows_errors():
+  ctx = mock.MagicMock()
+  ctx.add_session_to_memory = mock.AsyncMock()
+  assert await agent.save_session_to_memory(ctx) is None
+  ctx.add_session_to_memory.assert_awaited_once()
+
+  ctx.add_session_to_memory = mock.AsyncMock(side_effect=ValueError("no memory service"))
+  assert await agent.save_session_to_memory(ctx) is None  # Must not raise.
 
 
 @pytest.mark.asyncio

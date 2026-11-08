@@ -1,15 +1,33 @@
 """A simple ADK agent with Google Search and Vertex AI Vector Search (RAG)."""
 
+import logging
 import os
 import pathlib
 
 from dotenv import load_dotenv
 from google.adk.agents import Agent
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.google_search_tool import GoogleSearchTool
+from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 
 from .vector_search import search_knowledge_base
 
 load_dotenv(pathlib.Path(__file__).parent / ".env", override=True)
+
+logger = logging.getLogger(__name__)
+
+
+async def save_session_to_memory(callback_context: CallbackContext) -> None:
+  """Sends the conversation so far to the memory service after each turn.
+
+  With Memory Bank (``adk web --memory_service_uri=agentengine://...``) this
+  extracts and stores long-term memories for the user. A memory failure is
+  logged and never breaks the reply.
+  """
+  try:
+    await callback_context.add_session_to_memory()
+  except Exception:  # pylint: disable=broad-except
+    logger.exception("Failed to save session to memory")
 
 root_agent = Agent(
     name="rag_search_agent",
@@ -31,11 +49,19 @@ Rules:
 - When you use the knowledge base, cite the `source` of the passages you used.
 - When you use Google Search, mention that the information came from the web.
 - If neither tool gives an answer, say you don't know.
+
+Memory: facts from your earlier conversations with this user may be included
+below. Use them to personalise answers (for example preferences or details the
+user told you), but don't treat them as a source for document facts.
 """,
     tools=[
         # Gemini built-in search can't be mixed with function tools in one
         # request; bypass_multi_tools_limit makes ADK wrap it in a sub-agent.
         GoogleSearchTool(bypass_multi_tools_limit=True),
         search_knowledge_base,
+        # Searches the memory service with the user's message and adds any
+        # matching memories to the prompt before each model call.
+        PreloadMemoryTool(),
     ],
+    after_agent_callback=save_session_to_memory,
 )

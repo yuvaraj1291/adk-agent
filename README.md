@@ -109,6 +109,23 @@ adk run rag_agent
 
 In `adk web`, the **Events** tab shows which tool was called and what it returned.
 
+### Long-term memory (optional)
+
+The agent can remember facts about a user across sessions with
+[Vertex AI Memory Bank](https://cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/memory-bank/overview).
+Before each model call, `PreloadMemoryTool` searches Memory Bank with the user's message and adds any
+matches to the prompt. After each turn, `save_session_to_memory` sends the conversation to Memory Bank,
+which pulls out memories in the background. Point `adk web` at your Agent Engine instance with its
+full resource name, so the memory bank's region is used even when `GOOGLE_CLOUD_LOCATION=global`:
+
+```bash
+adk web --memory_service_uri=agentengine://projects/PROJECT_NUMBER/locations/us-central1/reasoningEngines/ENGINE_ID
+```
+
+Memory Bank generates memories with the model set in its `memoryBankConfig.generationConfig`. If no
+memories appear after a turn, check that your project can call that model in that location. Without the
+flag, ADK falls back to an in-memory service that forgets everything when the server stops.
+
 ## Tests
 
 ```bash
