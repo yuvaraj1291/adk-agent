@@ -9,11 +9,11 @@ from google.adk.tools.google_search_tool import GoogleSearchTool
 
 from .vector_search import search_knowledge_base
 
-load_dotenv(pathlib.Path(__file__).parent / ".env")
+load_dotenv(pathlib.Path(__file__).parent / ".env", override=True)
 
 root_agent = Agent(
     name="rag_search_agent",
-    model=os.getenv("AGENT_MODEL", "gemini-2.5-flash"),
+    model=os.getenv("AGENT_MODEL", "gemini-3.6-flash"),
     description=(
         "Answers questions using a private knowledge base (Vector Search) and"
         " Google Search."
