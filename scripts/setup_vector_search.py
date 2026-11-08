@@ -3,7 +3,7 @@
 Usage:
   python scripts/setup_vector_search.py
 
-Reads GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION / EMBEDDING_DIMENSIONS from
+Reads GOOGLE_CLOUD_PROJECT / VECTOR_SEARCH_LOCATION / EMBEDDING_DIMENSIONS from
 rag_agent/.env and writes the created resource names back into that file.
 Deployment usually takes 20-40 minutes.
 """
@@ -33,7 +33,7 @@ def main() -> None:
   load_dotenv(ENV_FILE)
   aiplatform.init(
       project=os.environ["GOOGLE_CLOUD_PROJECT"],
-      location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
+      location=os.getenv("VECTOR_SEARCH_LOCATION") or "us-central1",
   )
 
   print("Creating streaming index (a few minutes)...")

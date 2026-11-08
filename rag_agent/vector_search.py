@@ -25,21 +25,27 @@ def _env(name: str, default: str | None = None) -> str:
   return value
 
 
+def _vs_location() -> str:
+  """Region of the Vector Search index (and embedding model).
+
+  Kept separate from GOOGLE_CLOUD_LOCATION, which ADK uses for the Gemini
+  model and may be "global".
+  """
+  return os.getenv("VECTOR_SEARCH_LOCATION") or "us-central1"
+
+
 @functools.lru_cache(maxsize=1)
 def _genai_client() -> genai.Client:
   return genai.Client(
       vertexai=True,
       project=_env("GOOGLE_CLOUD_PROJECT"),
-      location=_env("GOOGLE_CLOUD_LOCATION", "us-central1"),
+      location=_vs_location(),
   )
 
 
 @functools.lru_cache(maxsize=1)
 def _index_endpoint() -> aiplatform.MatchingEngineIndexEndpoint:
-  aiplatform.init(
-      project=_env("GOOGLE_CLOUD_PROJECT"),
-      location=_env("GOOGLE_CLOUD_LOCATION", "us-central1"),
-  )
+  aiplatform.init(project=_env("GOOGLE_CLOUD_PROJECT"), location=_vs_location())
   return aiplatform.MatchingEngineIndexEndpoint(
       index_endpoint_name=_env("VECTOR_SEARCH_INDEX_ENDPOINT")
   )
@@ -85,12 +91,19 @@ def search_knowledge_base(query: str) -> dict[str, Any]:
   results = []
   for n in neighbors[0] if neighbors else []:
     metadata = dict(n.embedding_metadata or {})
-    results.append({
+    result = {
         "id": n.id,
-        "text": metadata.get("text", ""),
-        "source": metadata.get("source", ""),
+        "text": metadata.pop("text", ""),
+        "source": metadata.pop("source", ""),
         "distance": n.distance,
-    })
+    }
+    if metadata:  # Any other metadata stored on the datapoint.
+      result["metadata"] = metadata
+    if n.restricts:
+      result["restricts"] = {
+          r.name: list(r.allow_tokens or []) for r in n.restricts
+      }
+    results.append(result)
   if not results:
     return {"status": "no_results", "results": []}
   return {"status": "success", "results": results}

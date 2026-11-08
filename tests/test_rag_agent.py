@@ -37,7 +37,7 @@ async def test_google_search_is_wrapped_as_agent_tool():
 
 def test_search_knowledge_base_success():
   neighbor = SimpleNamespace(
-      id="abc", distance=0.87,
+      id="abc", distance=0.87, restricts=None,
       embedding_metadata={"text": "31 days PTO", "source": "handbook.md"})
   endpoint = mock.MagicMock()
   endpoint.find_neighbors.return_value = [[neighbor]]

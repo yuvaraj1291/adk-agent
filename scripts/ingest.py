@@ -90,7 +90,7 @@ def main(argv):
 
   aiplatform.init(
       project=os.environ["GOOGLE_CLOUD_PROJECT"],
-      location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
+      location=os.getenv("VECTOR_SEARCH_LOCATION") or "us-central1",
   )
   index = aiplatform.MatchingEngineIndex(
       index_name=os.environ["VECTOR_SEARCH_INDEX"]
