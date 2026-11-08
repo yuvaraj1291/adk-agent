@@ -114,8 +114,8 @@ In `adk web`, the **Events** tab shows which tool was called and what it returne
 The agent can remember facts about a user across sessions with
 [Vertex AI Memory Bank](https://cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/memory-bank/overview).
 Before each model call, `PreloadMemoryTool` searches Memory Bank with the user's message and adds any
-matches to the prompt. After each turn, `save_session_to_memory` sends the conversation to Memory Bank,
-which pulls out memories in the background. Point `adk web` at your Agent Engine instance with its
+matches to the prompt. After each turn, `save_session_to_memory` sends only that turn's events to Memory
+Bank, with the session ID as the `stream_id`, and Memory Bank pulls out memories in the background. Point `adk web` at your Agent Engine instance with its
 full resource name, so the memory bank's region is used even when `GOOGLE_CLOUD_LOCATION=global`:
 
 ```bash

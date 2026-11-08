@@ -18,16 +18,30 @@ logger = logging.getLogger(__name__)
 
 
 async def save_session_to_memory(callback_context: CallbackContext) -> None:
-  """Sends the conversation so far to the memory service after each turn.
+  """Sends only this turn's events to the memory service after each turn.
 
-  With Memory Bank (``adk web --memory_service_uri=agentengine://...``) this
-  extracts and stores long-term memories for the user. A memory failure is
-  logged and never breaks the reply.
+  Earlier turns were already sent, so resending the whole session would make
+  Memory Bank re-read the same messages every turn. Every turn of a session is
+  sent on the same ``stream_id`` (the session ID), so Memory Bank still treats
+  them as one conversation. A memory failure is logged and never breaks the
+  reply.
   """
   try:
-    await callback_context.add_session_to_memory()
+    session = callback_context.session
+    turn_events = [
+        e for e in session.events
+        if e.invocation_id == callback_context.invocation_id
+    ]
+    if not turn_events:
+      return
+    logger.info("Saving %d of %d session events to memory",
+                len(turn_events), len(session.events))
+    await callback_context.add_events_to_memory(
+        events=turn_events,
+        custom_metadata={"stream_id": session.id},
+    )
   except Exception:  # pylint: disable=broad-except
-    logger.exception("Failed to save session to memory")
+    logger.exception("Failed to save turn to memory")
 
 root_agent = Agent(
     name="rag_search_agent",

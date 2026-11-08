@@ -33,14 +33,34 @@ def test_agent_saves_session_to_memory_after_each_turn():
   assert agent.root_agent.after_agent_callback is agent.save_session_to_memory
 
 
-@pytest.mark.asyncio
-async def test_save_session_to_memory_calls_service_and_swallows_errors():
+def _memory_ctx(events, invocation_id="inv-2"):
   ctx = mock.MagicMock()
-  ctx.add_session_to_memory = mock.AsyncMock()
-  assert await agent.save_session_to_memory(ctx) is None
-  ctx.add_session_to_memory.assert_awaited_once()
+  ctx.invocation_id = invocation_id
+  ctx.session = SimpleNamespace(id="session-1", events=events)
+  ctx.add_events_to_memory = mock.AsyncMock()
+  return ctx
 
-  ctx.add_session_to_memory = mock.AsyncMock(side_effect=ValueError("no memory service"))
+
+@pytest.mark.asyncio
+async def test_save_session_to_memory_sends_only_this_turn():
+  old_q = SimpleNamespace(invocation_id="inv-1", id="e1")
+  old_a = SimpleNamespace(invocation_id="inv-1", id="e2")
+  new_q = SimpleNamespace(invocation_id="inv-2", id="e3")
+  new_a = SimpleNamespace(invocation_id="inv-2", id="e4")
+  ctx = _memory_ctx([old_q, old_a, new_q, new_a])
+  await agent.save_session_to_memory(ctx)
+  ctx.add_events_to_memory.assert_awaited_once_with(
+      events=[new_q, new_a], custom_metadata={"stream_id": "session-1"})
+
+
+@pytest.mark.asyncio
+async def test_save_session_to_memory_skips_empty_turn_and_swallows_errors():
+  ctx = _memory_ctx([SimpleNamespace(invocation_id="inv-1", id="e1")])
+  await agent.save_session_to_memory(ctx)
+  ctx.add_events_to_memory.assert_not_awaited()
+
+  ctx = _memory_ctx([SimpleNamespace(invocation_id="inv-2", id="e1")])
+  ctx.add_events_to_memory.side_effect = ValueError("no memory service")
   assert await agent.save_session_to_memory(ctx) is None  # Must not raise.
 
 
