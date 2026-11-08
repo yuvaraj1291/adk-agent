@@ -1,0 +1,6 @@
+google-adk>=2.14.0
+google-cloud-aiplatform>=2.7.0
+google-genai>=2.34.0
+python-dotenv>=1.0.0
+pytest>=8.0.0
+pytest-asyncio>=0.23
