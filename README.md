@@ -15,6 +15,8 @@ sub-agent automatically.
 rag_agent/
   agent.py              # root_agent definition
   vector_search.py      # search_knowledge_base tool + embedding helper
+  memory_tools.py       # remember_facts: saves to memory after the user confirms
+  search_budget.py      # per-question search limits
   .env.example          # configuration template
 scripts/
   setup_vector_search.py  # one-time: create index + public endpoint + deploy
@@ -114,17 +116,38 @@ In `adk web`, the **Events** tab shows which tool was called and what it returne
 The agent can remember facts about a user across sessions with
 [Vertex AI Memory Bank](https://cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/memory-bank/overview).
 Before each model call, `PreloadMemoryTool` searches Memory Bank with the user's message and adds any
-matches to the prompt. After each turn, `save_session_to_memory` sends only that turn's events to Memory
-Bank, with the session ID as the `stream_id`, and Memory Bank pulls out memories in the background. Point `adk web` at your Agent Engine instance with its
-full resource name, so the memory bank's region is used even when `GOOGLE_CLOUD_LOCATION=global`:
+matches to the prompt.
+
+Nothing is saved without the user's approval. When the user shares a lasting fact or preference, or
+asks the agent to remember something, the agent calls `remember_facts` with the facts it wants to
+keep. The first call only asks for confirmation (ADK's `request_confirmation`). In `adk web` this shows
+a card that lists the facts as editable JSON. The user can delete or reword facts, then tick
+**Confirmed** and **Submit**; submitting without ticking it saves nothing. Only the approved list is
+written, through `memories.generate` with consolidation, so it merges with existing memories.
+
+Point `adk web` at your Agent Engine instance with its full resource name, so the memory bank's
+region is used even when `GOOGLE_CLOUD_LOCATION=global`:
 
 ```bash
 adk web --memory_service_uri=agentengine://projects/PROJECT_NUMBER/locations/us-central1/reasoningEngines/ENGINE_ID
 ```
 
-Memory Bank generates memories with the model set in its `memoryBankConfig.generationConfig`. If no
-memories appear after a turn, check that your project can call that model in that location. Without the
-flag, ADK falls back to an in-memory service that forgets everything when the server stops.
+Memory Bank consolidates memories with the model set in its `memoryBankConfig.generationConfig`. If a
+confirmed fact doesn't appear, check that your project can call that model in that location. Without
+the flag, ADK falls back to an in-memory service that can't store facts directly, so `remember_facts`
+returns an error.
+
+### Search limits
+
+Each question gets a small search budget so the agent can't keep searching: by default 3
+`search_knowledge_base` calls and 2 web searches. Calls over the limit return `budget_exhausted`, and
+once a tool's budget is spent it is removed from the next model request, so Gemini has to answer from
+what it found or say it doesn't know. Change the limits in `rag_agent/.env`:
+
+```
+MAX_KNOWLEDGE_BASE_SEARCHES=3
+MAX_WEB_SEARCHES=2
+```
 
 ## Tests
 
