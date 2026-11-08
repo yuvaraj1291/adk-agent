@@ -109,7 +109,23 @@ adk run rag_agent
 - **Google Search:** "What's the weather in Tromsø today?"
 - **Both:** "Where is Zephyrine Robotics based, and what's the population of that city?"
 
-In `adk web`, the **Events** tab shows which tool was called and what it returned.
+In `adk web`, the **Events** tab shows which tool was called and what it returned. To see the exact
+request sent to Gemini, select a model event and open the **Request** icon (third in the left icon bar).
+
+### Persistent sessions (optional)
+
+By default `adk web` keeps sessions locally. To store them in
+[Vertex AI Agent Engine Sessions](https://cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/sessions/overview)
+instead, so conversations survive restarts and can be shared with a deployed agent, pass the same
+Agent Engine instance used for memory:
+
+```bash
+adk web \
+  --session_service_uri=agentengine://projects/PROJECT_NUMBER/locations/us-central1/reasoningEngines/ENGINE_ID \
+  --memory_service_uri=agentengine://projects/PROJECT_NUMBER/locations/us-central1/reasoningEngines/ENGINE_ID
+```
+
+Agent Engine assigns session IDs, and sessions are stored per user ID.
 
 ### Long-term memory (optional)
 
