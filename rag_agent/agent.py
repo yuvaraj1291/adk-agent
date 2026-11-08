@@ -9,6 +9,7 @@ from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 
 from .memory_tools import remember_facts
+from .model_armor import screen_prompt, screen_response
 from .search_budget import drop_spent_tools, limit_searches
 from .vector_search import search_knowledge_base
 
@@ -65,5 +66,8 @@ Memory:
     # Each turn gets a small search budget; once it is spent the tools are
     # removed so the model has to answer (see search_budget.py).
     before_tool_callback=limit_searches,
-    before_model_callback=drop_spent_tools,
+    # Model Armor screens the user's message first; a blocked prompt never
+    # reaches Gemini (see model_armor.py).
+    before_model_callback=[screen_prompt, drop_spent_tools],
+    after_model_callback=screen_response,
 )

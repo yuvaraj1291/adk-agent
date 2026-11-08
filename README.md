@@ -17,6 +17,7 @@ rag_agent/
   vector_search.py      # search_knowledge_base tool + embedding helper
   memory_tools.py       # remember_facts: saves to memory after the user confirms
   search_budget.py      # per-question search limits
+  model_armor.py        # Model Armor screening of prompts and replies
   .env.example          # configuration template
 scripts/
   setup_vector_search.py  # one-time: create index + public endpoint + deploy
@@ -152,6 +153,27 @@ Memory Bank consolidates memories with the model set in its `memoryBankConfig.ge
 confirmed fact doesn't appear, check that your project can call that model in that location. Without
 the flag, ADK falls back to an in-memory service that can't store facts directly, so `remember_facts`
 returns an error.
+
+### Model Armor (optional)
+
+[Model Armor](https://cloud.google.com/security-command-center/docs/model-armor-overview) can screen
+every user message before Gemini sees it, and every final reply before the user sees it.
+`screen_prompt` (a `before_model_callback`) blocks the model call when the user's message matches a
+filter, and `screen_response` (an `after_model_callback`) swaps a matching reply for a short notice.
+Tool calls, tool results and streamed partial chunks aren't screened.
+
+Create a template with the filters you want (prompt injection and jailbreak, malicious URLs,
+harmful content, sensitive data), then set its full name in `rag_agent/.env`:
+
+```
+MODEL_ARMOR_TEMPLATE=projects/PROJECT_ID/locations/us-central1/templates/TEMPLATE_ID
+MODEL_ARMOR_FAIL_OPEN=false
+```
+
+If Model Armor can't be reached, the message is blocked unless `MODEL_ARMOR_FAIL_OPEN=true`. Each
+screened message is a Model Armor call, billed per token. The prompt injection filter can flag
+harmless questions about the agent itself ("what documents do you have?"); if that happens often,
+raise its confidence level in the template from `MEDIUM_AND_ABOVE` to `HIGH`.
 
 ### Search limits
 
